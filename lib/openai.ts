@@ -213,18 +213,11 @@ export async function generateDetailContent(
   shopUrl: string | null,
   config: Partial<OpenAIConfig> = {}
 ): Promise<string> {
-  // 이미지 URL 목록 생성
-  const imageUrls = images.map(img => img.path || img.url || '').filter(url => url !== '');
-  const imageDescription = imageUrls.length > 0 
-    ? `이미지 ${imageUrls.length}장이 제공됩니다. 이 이미지들을 콘텐츠 중간중간에 적절히 배치해주세요.` 
+  // 이미지 개수만 전달
+  const imageCount = images.length;
+  const imageDescription = imageCount > 0 
+    ? `총 ${imageCount}장의 이미지가 있습니다. 생성된 콘텐츠에 [IMAGE_PLACEHOLDER_1], [IMAGE_PLACEHOLDER_2] 등의 형태로 이미지 위치를 표시해주세요.` 
     : '이미지 없음';
-  
-  // 이미지 HTML 태그 예시 생성
-  const imageTagExamples = imageUrls.map((url, index) => 
-    `<div class="product-image-container">
-      <img src="${url}" alt="${projectName} 이미지 ${index + 1}" class="product-image" style="max-width: 100%; border-radius: 8px; margin: 20px 0;" />
-    </div>`
-  ).join('\n\n');
   
   const prompt = `
 다음 정보를 바탕으로 상품 상세 페이지에 들어갈 콘텐츠를 생성해주세요:
@@ -240,18 +233,33 @@ export async function generateDetailContent(
 3. 각 특징에 대한 설명(p 태그)
 4. 필요시 리스트 형태의 정보(ul, li 태그)
 5. 구매를 유도하는 문구(강조 태그 활용)
-6. 제공된 이미지를 콘텐츠 섹션 사이에 적절히 배치(매 1-2개의 섹션마다 이미지 1개 삽입)
 
-이미지 삽입은 아래의 HTML 태그 형식을 사용해주세요:
-${imageTagExamples}
-
-각 이미지는 관련 내용과 함께 배치해주세요. 예를 들어, 제품의 특정 기능을 설명한 후 해당 기능이 잘 보이는 이미지를 배치하는 방식으로 구성해주세요.
+중요: 이미지는 직접 삽입하지 말고, 이미지가 들어가야 할 위치마다 [IMAGE_PLACEHOLDER_1], [IMAGE_PLACEHOLDER_2] 등의 형태로 순차적으로 표시해주세요. 최대 ${imageCount}개의 이미지 위치를 지정할 수 있습니다.
 
 결과는 HTML 태그를 포함하여 반환해주세요.
-CSS 스타일도 포함하여 미리보기도 사용자들이 보기 좋게 해주세요.
 `;
 
-  return await generateText(prompt, config);
+  const response = await generateText(prompt, {
+    ...config,
+    maxTokens: 2000, // 토큰 수 제한
+  });
+  
+  // 응답에서 이미지 플레이스홀더를 실제 이미지 태그로 대체
+  let result = response;
+  images.forEach((img, index) => {
+    const imageUrl = img.path || img.url || '';
+    if (imageUrl) {
+      const placeholder = `[IMAGE_PLACEHOLDER_${index + 1}]`;
+      const imageTag = `
+<div class="product-image-container">
+  <img src="${imageUrl}" alt="${projectName} 이미지 ${index + 1}" class="product-image" style="max-width: 100%; border-radius: 8px; margin: 20px 0;" />
+</div>`;
+      
+      result = result.replace(new RegExp(placeholder, 'g'), imageTag);
+    }
+  });
+  
+  return result;
 }
 
 /**

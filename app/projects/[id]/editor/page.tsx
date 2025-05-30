@@ -253,10 +253,24 @@ export default function EditorPage() {
       const projectName = project?.name || "프로젝트";
       
       // 프로젝트 설명 텍스트 (첫 번째 body 타입 텍스트 사용)
-      const productText = texts.find(text => text.type === 'body')?.content || '';
+      let productText = texts.find(text => text.type === 'body')?.content || '';
       
-      // 이미지 확인
-      if (images.length === 0) {
+      // 텍스트가 너무 길면 요약 (토큰 수를 줄이기 위함)
+      if (productText.length > 2000) {
+        productText = productText.substring(0, 2000) + '...';
+        console.log('상품 설명 텍스트가 너무 길어 일부만 사용합니다.');
+      }
+      
+      // 이미지 확인 및 필터링 (필요한 정보만 포함)
+      const filteredImages = images.map(img => ({
+        id: img.id,
+        projectId: projectId as string,
+        path: img.path || '',
+        url: img.url || '',
+        type: img.type || 'other'
+      })).slice(0, 10); // 최대 10개 이미지로 제한
+      
+      if (filteredImages.length === 0) {
         console.warn('등록된 이미지가 없습니다. 이미지 없이 콘텐츠를 생성합니다.');
       }
       
@@ -264,12 +278,11 @@ export default function EditorPage() {
       const content = await generateDetailContent(
         projectName,
         productText,
-        images,
+        filteredImages,
         shopUrl
       );
       
       setGeneratedContent(content);
-      
       setSelectedContent(null);
       
       // 생성 후 미리보기 탭으로 전환
